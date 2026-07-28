@@ -1,0 +1,17 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs / temp
+*.log
+/tmp/
+
+# Env
+.env
+.env.*
+
+# Ona / Gitpod environment tooling (not required to run the site)
+.devcontainer/
+.ona/
