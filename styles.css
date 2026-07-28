@@ -1,0 +1,80 @@
+/* =========================================================================
+ *  CAPEX Equipment Cost & Weight Estimator — Feuille de styles
+ * -------------------------------------------------------------------------
+ *  Styles personnalisés venant en complément de Tailwind CSS (chargé via CDN).
+ *  Tailwind gère l'essentiel de la mise en page via des classes utilitaires
+ *  directement dans le HTML ; ce fichier ne contient que :
+ *    1. La typographie de base
+ *    2. Les animations personnalisées
+ *    3. Quelques ajustements de composants (états de chargement, formulaires)
+ *
+ *  La palette de couleurs (brand / accent) est définie dans « tailwind-config.js »
+ *  car la configuration de Tailwind CDN doit être en JavaScript.
+ * ========================================================================= */
+
+/* -------------------------------------------------------------------------
+ *  1. Typographie
+ * ------------------------------------------------------------------------- */
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* -------------------------------------------------------------------------
+ *  2. Animation d'apparition
+ *  Utilisée sur les blocs affichés dynamiquement (bannière, paramètres,
+ *  résultats) via la classe utilitaire « .fade-in ».
+ * ------------------------------------------------------------------------- */
+.fade-in {
+  animation: fadeIn 0.35s ease both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* -------------------------------------------------------------------------
+ *  3. Ajustements de formulaire
+ * ------------------------------------------------------------------------- */
+
+/* On conserve les flèches natives des champs numériques (aspect plus clair). */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+/* -------------------------------------------------------------------------
+ *  4. Bouton « Estimer » — état de chargement
+ *  Prépare la migration vers un back-end : lorsque l'estimation devient un
+ *  appel réseau (asynchrone), le bouton passe en état « chargement » via
+ *  l'attribut [data-loading="true"]. On désactive alors le clic et on
+ *  affiche un indicateur visuel.
+ * ------------------------------------------------------------------------- */
+.btn-estimate[data-loading='true'] {
+  opacity: 0.7;
+  cursor: wait;
+  pointer-events: none;
+}
+
+/* Petit indicateur circulaire réutilisable (spinner). */
+.spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 9999px;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
