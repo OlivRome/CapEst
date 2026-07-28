@@ -95,10 +95,21 @@
           <label for="equipment" class="block text-sm font-semibold text-slate-700 mb-1.5">
             Type d'équipement
           </label>
-          <select id="equipment"
-            class="w-full rounded-lg border-slate-300 bg-white text-slate-800 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-200 py-2.5 px-3 text-sm border">
-            <!-- populated by JS -->
-          </select>
+          <div class="flex flex-col sm:flex-row sm:items-stretch gap-4">
+            <div class="flex-1">
+              <select id="equipment"
+                class="w-full rounded-lg border-slate-300 bg-white text-slate-800 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-200 py-2.5 px-3 text-sm border">
+                <!-- populated by JS -->
+              </select>
+            </div>
+            <!-- Equipment schematic -->
+            <div id="schematic"
+              class="hidden sm:flex flex-shrink-0 w-full sm:w-56 items-center justify-center rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 to-slate-100 p-3">
+              <div id="schematic-inner" class="w-full flex flex-col items-center justify-center gap-1">
+                <!-- SVG injected by JS -->
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Support / dev banner -->
@@ -114,7 +125,7 @@
         <div id="params" class="hidden fade-in">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <!-- Volume -->
-            <div>
+            <div id="field-volume" data-models="tank">
               <label for="volume" class="block text-sm font-semibold text-slate-700 mb-1.5">
                 Capacité / Volume
               </label>
@@ -131,7 +142,7 @@
             </div>
 
             <!-- Material -->
-            <div>
+            <div id="field-material" data-models="tank pump">
               <label for="material" class="block text-sm font-semibold text-slate-700 mb-1.5">
                 Matériau de construction
               </label>
@@ -143,7 +154,7 @@
             </div>
 
             <!-- Pressure -->
-            <div>
+            <div id="field-pressure" data-models="tank">
               <label for="pressure" class="block text-sm font-semibold text-slate-700 mb-1.5">
                 Pression de service (bar)
               </label>
@@ -153,7 +164,7 @@
             </div>
 
             <!-- Country -->
-            <div>
+            <div id="field-country" data-models="tank pump">
               <label for="country" class="block text-sm font-semibold text-slate-700 mb-1.5">
                 Pays d'installation
               </label>
@@ -162,6 +173,38 @@
                 <!-- populated by JS -->
               </select>
               <p class="text-xs text-slate-400 mt-1">Facteur de localisation appliqué au coût final</p>
+            </div>
+
+            <!-- Pump: flow rate -->
+            <div id="field-flow" data-models="pump" class="hidden">
+              <label for="flow" class="block text-sm font-semibold text-slate-700 mb-1.5">
+                Débit nominal (m³/h)
+              </label>
+              <input id="flow" type="number" min="1" max="5000" step="any" value="50"
+                class="w-full rounded-lg border-slate-300 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-200 py-2.5 px-3 text-sm border" />
+              <p class="text-xs text-slate-400 mt-1">Plage admise : 1 à 5 000 m³/h</p>
+            </div>
+
+            <!-- Pump: head -->
+            <div id="field-head" data-models="pump" class="hidden">
+              <label for="head" class="block text-sm font-semibold text-slate-700 mb-1.5">
+                Hauteur manométrique (m)
+              </label>
+              <input id="head" type="number" min="1" max="500" step="any" value="30"
+                class="w-full rounded-lg border-slate-300 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-200 py-2.5 px-3 text-sm border" />
+              <p class="text-xs text-slate-400 mt-1">Plage admise : 1 à 500 m (HMT)</p>
+            </div>
+
+            <!-- Pump: type -->
+            <div id="field-pumptype" data-models="pump" class="hidden">
+              <label for="pumptype" class="block text-sm font-semibold text-slate-700 mb-1.5">
+                Type de pompe
+              </label>
+              <select id="pumptype"
+                class="w-full rounded-lg border-slate-300 bg-white shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-200 py-2.5 px-3 text-sm border">
+                <!-- populated by JS -->
+              </select>
+              <p class="text-xs text-slate-400 mt-1">Impacte le coût de base et le poids</p>
             </div>
           </div>
 
@@ -313,7 +356,7 @@
           sector: 'Utilities & Équipements Généraux',
           items: [
             { id: 'ut_pressure_vessel', label: 'Cuve sous pression (Pressure Vessel)', supported: true },
-            { id: 'ut_pump', label: 'Pompe industrielle (Centrifuge / Volumétrique)', supported: false },
+            { id: 'ut_pump', label: 'Pompe industrielle (Centrifuge / Volumétrique)', supported: true },
             { id: 'ut_mixer', label: 'Mélangeur / Agitateur', supported: false },
             { id: 'ut_centrifuge', label: 'Centrifugeuse industrielle', supported: false },
             { id: 'ut_turbine', label: 'Turbine à vapeur / gaz', supported: false }
@@ -340,12 +383,26 @@
         { id: 'sg', label: 'Singapour',     factor: 1.10 }
       ],
 
+      // Pump type coefficients (cost & weight multipliers on the base pump model).
+      pumpTypes: [
+        { id: 'centrifugal', label: 'Centrifuge',              costFactor: 1.00, weightFactor: 1.00 },
+        { id: 'multistage',  label: 'Centrifuge multi-étages', costFactor: 1.45, weightFactor: 1.30 },
+        { id: 'pd_rotary',   label: 'Volumétrique rotative',   costFactor: 1.60, weightFactor: 1.25 },
+        { id: 'pd_recip',    label: 'Volumétrique alternative', costFactor: 2.10, weightFactor: 1.60 }
+      ],
+
       // Last computed result.
       lastResult: null
     };
 
-    // Set of equipment ids that behave as a "tank" (Cuve) model.
-    const TANK_IDS = new Set(['ls_prep_tank', 'ut_pressure_vessel']);
+    // Maps each supported equipment id to a parametric model key.
+    // Equipment absent from this map has no model yet (v2 banner).
+    const MODEL_BY_EQUIPMENT = {
+      ls_prep_tank:       'tank',
+      ut_pressure_vessel: 'tank',
+      ut_pump:            'pump'
+    };
+    const modelOf = id => MODEL_BY_EQUIPMENT[id] || null;
 
     /* =========================================================
      *  DOM REFERENCES
@@ -360,6 +417,12 @@
       material:    document.getElementById('material'),
       pressure:    document.getElementById('pressure'),
       country:     document.getElementById('country'),
+      flow:        document.getElementById('flow'),
+      head:        document.getElementById('head'),
+      pumptype:    document.getElementById('pumptype'),
+      schematic:      document.getElementById('schematic'),
+      schematicInner: document.getElementById('schematic-inner'),
+      fields:      Array.from(document.querySelectorAll('[data-models]')),
       validation:  document.getElementById('validation'),
       estimate:    document.getElementById('estimate'),
       results:     document.getElementById('results'),
@@ -433,6 +496,155 @@
       el.country.appendChild(frag);
     }
 
+    function populatePumpTypes() {
+      const frag = document.createDocumentFragment();
+      Store.pumpTypes.forEach((p, i) => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.label}  (coût ×${fmtNum.format(p.costFactor)} · poids ×${fmtNum.format(p.weightFactor)})`;
+        if (i === 0) opt.selected = true;
+        frag.appendChild(opt);
+      });
+      el.pumptype.appendChild(frag);
+    }
+
+    /* =========================================================
+     *  EQUIPMENT SCHEMATICS (grayscale line drawings)
+     *  Shared visual style: slate stroke, light fills, 120x120 vb.
+     * ======================================================= */
+    const SVG_ATTRS = 'viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-28 h-28"';
+    const SK = { s: '#64748b', l: '#cbd5e1', ll: '#e2e8f0', d: '#475569' };
+
+    // Each entry returns an inner SVG markup string.
+    const SCHEMATICS = {
+      // --- Tanks / vessels ---
+      ls_prep_tank: () => `
+        <rect x="34" y="30" width="52" height="66" rx="6" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <ellipse cx="60" cy="30" rx="26" ry="8" fill="${SK.l}" stroke="${SK.s}" stroke-width="2.5"/>
+        <path d="M34 96 q26 12 52 0" fill="${SK.l}" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="60" y1="14" x2="60" y2="30" stroke="${SK.s}" stroke-width="2.5"/>
+        <circle cx="60" cy="12" r="3" fill="${SK.d}"/>
+        <line x1="42" y1="108" x2="42" y2="118" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="78" y1="108" x2="78" y2="118" stroke="${SK.s}" stroke-width="2.5"/>`,
+      ut_pressure_vessel: () => `
+        <rect x="40" y="34" width="40" height="52" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <path d="M40 34 a20 16 0 0 1 40 0" fill="${SK.l}" stroke="${SK.s}" stroke-width="2.5"/>
+        <path d="M40 86 a20 16 0 0 0 40 0" fill="${SK.l}" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="60" y1="12" x2="60" y2="20" stroke="${SK.s}" stroke-width="2.5"/>
+        <rect x="54" y="10" width="12" height="6" fill="${SK.d}"/>
+        <line x1="48" y1="100" x2="48" y2="112" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="72" y1="100" x2="72" y2="112" stroke="${SK.s}" stroke-width="2.5"/>`,
+      ls_bioreactor: () => `
+        <rect x="38" y="34" width="44" height="60" rx="6" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <ellipse cx="60" cy="34" rx="22" ry="7" fill="${SK.l}" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="60" y1="18" x2="60" y2="70" stroke="${SK.s}" stroke-width="2.5"/>
+        <path d="M50 60 h20 M50 70 h20" stroke="${SK.s}" stroke-width="2.5"/>
+        <circle cx="60" cy="16" r="4" fill="${SK.d}"/>`,
+      // --- Pump ---
+      ut_pump: () => `
+        <circle cx="54" cy="66" r="26" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <path d="M54 66 L54 44 A22 22 0 0 1 73 56 Z" fill="${SK.l}" stroke="${SK.s}" stroke-width="2"/>
+        <path d="M54 66 L74 74 A22 22 0 0 1 55 88 Z" fill="${SK.l}" stroke="${SK.s}" stroke-width="2"/>
+        <path d="M54 66 L38 52 A22 22 0 0 0 33 74 Z" fill="${SK.l}" stroke="${SK.s}" stroke-width="2"/>
+        <circle cx="54" cy="66" r="5" fill="${SK.d}"/>
+        <path d="M54 40 v-16 h22" stroke="${SK.s}" stroke-width="3" fill="none"/>
+        <rect x="74" y="18" width="14" height="12" fill="${SK.l}" stroke="${SK.s}" stroke-width="2.5"/>
+        <rect x="40" y="96" width="28" height="8" fill="${SK.d}"/>`,
+      // --- Oil & Gas ---
+      og_separator: () => `
+        <rect x="24" y="48" width="72" height="30" rx="15" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="60" y1="48" x2="60" y2="78" stroke="${SK.l}" stroke-width="2"/>
+        <path d="M24 66 q36 8 72 0" stroke="${SK.s}" stroke-width="2" fill="none"/>
+        <line x1="12" y1="60" x2="24" y2="60" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="96" y1="56" x2="108" y2="56" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="34" y1="78" x2="34" y2="92" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="86" y1="78" x2="86" y2="92" stroke="${SK.s}" stroke-width="2.5"/>`,
+      og_distillation: () => `
+        <rect x="48" y="16" width="24" height="88" rx="10" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="48" y1="34" x2="72" y2="34" stroke="${SK.s}" stroke-width="1.8"/>
+        <line x1="48" y1="50" x2="72" y2="50" stroke="${SK.s}" stroke-width="1.8"/>
+        <line x1="48" y1="66" x2="72" y2="66" stroke="${SK.s}" stroke-width="1.8"/>
+        <line x1="48" y1="82" x2="72" y2="82" stroke="${SK.s}" stroke-width="1.8"/>
+        <path d="M60 16 v-6 h20" stroke="${SK.s}" stroke-width="2.5" fill="none"/>`,
+      og_compressor: () => `
+        <rect x="30" y="46" width="40" height="36" rx="4" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <circle cx="50" cy="64" r="10" fill="${SK.l}" stroke="${SK.s}" stroke-width="2"/>
+        <circle cx="50" cy="64" r="3" fill="${SK.d}"/>
+        <rect x="70" y="54" width="20" height="20" fill="${SK.l}" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="18" y1="64" x2="30" y2="64" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="90" y1="64" x2="102" y2="64" stroke="${SK.s}" stroke-width="2.5"/>`,
+      og_heatexch: () => `
+        <rect x="22" y="46" width="76" height="28" rx="14" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="34" y1="46" x2="34" y2="74" stroke="${SK.s}" stroke-width="2"/>
+        <line x1="86" y1="46" x2="86" y2="74" stroke="${SK.s}" stroke-width="2"/>
+        <path d="M38 54 h44 M38 60 h44 M38 66 h44" stroke="${SK.s}" stroke-width="1.6"/>
+        <line x1="34" y1="36" x2="34" y2="46" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="86" y1="74" x2="86" y2="84" stroke="${SK.s}" stroke-width="2.5"/>`,
+      og_boiler: () => `
+        <rect x="36" y="30" width="48" height="60" rx="6" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <path d="M52 78 q8 -14 0 -28 M60 78 q8 -14 0 -28 M68 78 q8 -14 0 -28" stroke="${SK.d}" stroke-width="2" fill="none"/>
+        <rect x="30" y="16" width="12" height="16" fill="${SK.l}" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="44" y1="90" x2="44" y2="102" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="76" y1="90" x2="76" y2="102" stroke="${SK.s}" stroke-width="2.5"/>`,
+      og_flare: () => `
+        <rect x="52" y="34" width="10" height="70" fill="${SK.l}" stroke="${SK.s}" stroke-width="2.5"/>
+        <path d="M57 34 q-10 -14 0 -24 q6 10 0 24" fill="${SK.d}" stroke="${SK.d}" stroke-width="1"/>
+        <line x1="40" y1="104" x2="74" y2="104" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="46" y1="60" x2="52" y2="60" stroke="${SK.s}" stroke-width="2"/>
+        <line x1="46" y1="78" x2="52" y2="78" stroke="${SK.s}" stroke-width="2"/>`,
+      // --- Life sciences extras ---
+      ls_tff: () => `
+        <rect x="30" y="40" width="60" height="18" rx="9" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <rect x="30" y="64" width="60" height="18" rx="9" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="18" y1="49" x2="30" y2="49" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="90" y1="49" x2="102" y2="49" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="90" y1="73" x2="102" y2="73" stroke="${SK.s}" stroke-width="2.5"/>`,
+      ls_autoclave: () => `
+        <rect x="34" y="36" width="52" height="54" rx="8" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <circle cx="60" cy="63" r="16" fill="${SK.l}" stroke="${SK.s}" stroke-width="2"/>
+        <circle cx="60" cy="63" r="4" fill="${SK.d}"/>
+        <line x1="34" y1="52" x2="86" y2="52" stroke="${SK.s}" stroke-width="1.8"/>`,
+      ls_lyo: () => `
+        <rect x="30" y="40" width="60" height="46" rx="6" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="42" y1="52" x2="78" y2="52" stroke="${SK.s}" stroke-width="1.8"/>
+        <line x1="42" y1="62" x2="78" y2="62" stroke="${SK.s}" stroke-width="1.8"/>
+        <line x1="42" y1="72" x2="78" y2="72" stroke="${SK.s}" stroke-width="1.8"/>`,
+      ls_homogenizer: () => `
+        <rect x="34" y="44" width="40" height="34" rx="4" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <rect x="74" y="52" width="16" height="18" fill="${SK.l}" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="22" y1="61" x2="34" y2="61" stroke="${SK.s}" stroke-width="2.5"/>
+        <circle cx="54" cy="61" r="8" fill="${SK.l}" stroke="${SK.s}" stroke-width="2"/>`,
+      // --- Utilities extras ---
+      ut_mixer: () => `
+        <path d="M36 44 h48 l-8 46 h-32 Z" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="60" y1="18" x2="60" y2="70" stroke="${SK.s}" stroke-width="2.5"/>
+        <path d="M50 66 h20 M52 74 h16" stroke="${SK.s}" stroke-width="2.5"/>
+        <circle cx="60" cy="16" r="4" fill="${SK.d}"/>`,
+      ut_centrifuge: () => `
+        <circle cx="60" cy="62" r="30" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <circle cx="60" cy="62" r="16" fill="${SK.l}" stroke="${SK.s}" stroke-width="2"/>
+        <circle cx="60" cy="62" r="4" fill="${SK.d}"/>
+        <line x1="60" y1="32" x2="60" y2="46" stroke="${SK.s}" stroke-width="2.5"/>`,
+      ut_turbine: () => `
+        <ellipse cx="60" cy="62" rx="30" ry="20" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5"/>
+        <path d="M40 62 l20 -10 v20 Z M80 62 l-20 -10 v20 Z" fill="${SK.l}" stroke="${SK.s}" stroke-width="1.6"/>
+        <line x1="30" y1="62" x2="18" y2="62" stroke="${SK.s}" stroke-width="2.5"/>
+        <line x1="90" y1="62" x2="102" y2="62" stroke="${SK.s}" stroke-width="2.5"/>`
+    };
+
+    function defaultSchematic() {
+      return `<rect x="34" y="40" width="52" height="48" rx="6" fill="${SK.ll}" stroke="${SK.s}" stroke-width="2.5" stroke-dasharray="5 4"/>
+        <text x="60" y="68" text-anchor="middle" font-size="26" fill="${SK.s}">?</text>`;
+    }
+
+    function renderSchematic(id, label) {
+      const builder = SCHEMATICS[id] || defaultSchematic;
+      el.schematicInner.innerHTML =
+        `<svg ${SVG_ATTRS}>${builder()}</svg>
+         <span class="text-[11px] font-medium text-slate-500 text-center leading-tight">${label}</span>`;
+      el.schematic.classList.remove('hidden');
+    }
+
     /* =========================================================
      *  LOOKUP HELPERS
      * ======================================================= */
@@ -445,30 +657,46 @@
     }
     const findMaterial = id => Store.materials.find(m => m.id === id) || null;
     const findCountry  = id => Store.countries.find(c => c.id === id) || null;
+    const findPumpType = id => Store.pumpTypes.find(p => p.id === id) || null;
 
     /* =========================================================
      *  UI STATE ON EQUIPMENT CHANGE
      * ======================================================= */
+    // Show only the parameter fields relevant to the active model.
+    function toggleFieldsForModel(model) {
+      el.fields.forEach(f => {
+        const models = (f.dataset.models || '').split(/\s+/);
+        f.classList.toggle('hidden', !models.includes(model));
+      });
+    }
+
     function onEquipmentChange() {
       const id = el.equipment.value;
       const eq = findEquipment(id);
 
       // reset results whenever selection changes
       el.results.classList.add('hidden');
+      el.validation.classList.add('hidden');
       Store.lastResult = null;
 
       if (!eq) {
         el.banner.classList.add('hidden');
         el.params.classList.add('hidden');
+        el.schematic.classList.add('hidden');
         return;
       }
 
-      if (TANK_IDS.has(id)) {
+      // Always show a representative schematic for the selected equipment.
+      renderSchematic(id, eq.label);
+
+      const model = modelOf(id);
+      if (model) {
         el.banner.classList.add('hidden');
+        toggleFieldsForModel(model);
         el.params.classList.remove('hidden');
       } else {
         el.bannerText.textContent =
-          "Modèle mathématique en cours de développement pour la v2. Veuillez sélectionner 'Cuve' pour tester l'estimateur.";
+          "Modèle mathématique en cours de développement pour la v2. Veuillez sélectionner 'Cuve' ou 'Pompe' pour tester l'estimateur.";
         el.banner.classList.remove('hidden');
         el.params.classList.add('hidden');
       }
@@ -477,61 +705,108 @@
     /* =========================================================
      *  VALIDATION
      * ======================================================= */
-    function readInputs() {
-      const rawVolume = parseFloat(el.volume.value);
-      const unit = el.volumeUnit.value; // 'L' | 'm3'
-      const pressure = parseFloat(el.pressure.value);
-
+    function readInputs(model) {
       const errors = [];
-
-      if (!isFinite(rawVolume) || rawVolume <= 0) {
-        errors.push('Le volume doit être un nombre strictement positif.');
-      }
-      if (!isFinite(pressure) || pressure < 1 || pressure > 50) {
-        errors.push('La pression doit être comprise entre 1 et 50 bar.');
-      }
-
-      const volumeM3 = unit === 'm3' ? rawVolume : rawVolume / 1000;
-
-      return {
-        errors,
-        rawVolume,
-        unit,
-        volumeM3,
-        pressure,
+      const input = {
+        model,
         material: findMaterial(el.material.value),
         country: findCountry(el.country.value)
       };
+
+      if (model === 'tank') {
+        const rawVolume = parseFloat(el.volume.value);
+        const unit = el.volumeUnit.value; // 'L' | 'm3'
+        const pressure = parseFloat(el.pressure.value);
+
+        if (!isFinite(rawVolume) || rawVolume <= 0) {
+          errors.push('Le volume doit être un nombre strictement positif.');
+        }
+        if (!isFinite(pressure) || pressure < 1 || pressure > 50) {
+          errors.push('La pression doit être comprise entre 1 et 50 bar.');
+        }
+        input.rawVolume = rawVolume;
+        input.unit = unit;
+        input.volumeM3 = unit === 'm3' ? rawVolume : rawVolume / 1000;
+        input.pressure = pressure;
+      } else if (model === 'pump') {
+        const flow = parseFloat(el.flow.value);
+        const head = parseFloat(el.head.value);
+
+        if (!isFinite(flow) || flow < 1 || flow > 5000) {
+          errors.push('Le débit doit être compris entre 1 et 5 000 m³/h.');
+        }
+        if (!isFinite(head) || head < 1 || head > 500) {
+          errors.push('La hauteur manométrique doit être comprise entre 1 et 500 m.');
+        }
+        input.flow = flow;
+        input.head = head;
+        input.pumpType = findPumpType(el.pumptype.value);
+      }
+
+      input.errors = errors;
+      return input;
     }
 
     /* =========================================================
-     *  PARAMETRIC MODEL (Tank model)
+     *  PARAMETRIC MODELS
      * ======================================================= */
-    function computeEstimate(input) {
+
+    // --- Tank / vessel model ---
+    function computeTank(input) {
       const V = input.volumeM3;
       const P = input.pressure;
       const mat = input.material;
       const ctry = input.country;
 
-      // --- Cost ---
+      // Cost
       const cBase   = 12000 * Math.pow(V, 0.62);
       const cMat    = cBase * mat.costFactor;
       const fPress  = 1 + 0.03 * (P - 1);
       const cFinal  = cMat * fPress * ctry.factor;
-      const costMin = cFinal * 0.70;
-      const costMax = cFinal * 1.30;
 
-      // --- Weight ---
+      // Weight
       const wBase   = 450 * Math.pow(V, 0.75);
       const wFinal  = wBase * mat.weightFactor * (1 + 0.02 * (P - 1));
-      const weightMin = wFinal * 0.80;
-      const weightMax = wFinal * 1.20;
 
       return {
         input,
-        cost:   { nominal: cFinal, min: costMin, max: costMax, pressureFactor: fPress },
-        weight: { nominal: wFinal, min: weightMin, max: weightMax }
+        cost:   { nominal: cFinal, min: cFinal * 0.70, max: cFinal * 1.30, pressureFactor: fPress },
+        weight: { nominal: wFinal, min: wFinal * 0.80, max: wFinal * 1.20 }
       };
+    }
+
+    // --- Pump model ---
+    // Sizing proxy: hydraulic power P_hyd = Q[m³/h]/3600 * ρ*g * H  (kW),
+    // with ρ=1000, g=9.81. Cost & weight scale sub-linearly with power.
+    function computePump(input) {
+      const Q = input.flow;   // m³/h
+      const H = input.head;   // m
+      const mat = input.material;
+      const ctry = input.country;
+      const pt = input.pumpType;
+
+      const powerKw = (Q / 3600) * 1000 * 9.81 * H / 1000; // kW hydraulic
+
+      // Cost
+      const cBase  = 5200 * Math.pow(powerKw, 0.55);
+      const cMat   = cBase * mat.costFactor;
+      const cType  = cMat * pt.costFactor;
+      const cFinal = cType * ctry.factor;
+
+      // Weight
+      const wBase  = 22 * Math.pow(powerKw, 0.62);
+      const wFinal = wBase * mat.weightFactor * pt.weightFactor;
+
+      return {
+        input,
+        powerKw,
+        cost:   { nominal: cFinal, min: cFinal * 0.70, max: cFinal * 1.30 },
+        weight: { nominal: wFinal, min: wFinal * 0.80, max: wFinal * 1.20 }
+      };
+    }
+
+    function computeEstimate(input) {
+      return input.model === 'pump' ? computePump(input) : computeTank(input);
     }
 
     /* =========================================================
@@ -551,19 +826,39 @@
       // Summary table
       const eq = findEquipment(el.equipment.value);
       const i = result.input;
-      const rows = [
-        ['Équipement', `${eq.label} <span class="text-slate-400">(${eq.sector})</span>`],
-        ['Volume saisi', `${fmtNum.format(i.rawVolume)} ${i.unit === 'm3' ? 'm³' : 'L'} <span class="text-slate-400">(= ${fmtNum.format(i.volumeM3)} m³)</span>`],
-        ['Matériau', `${i.material.label}`],
-        ['Facteur coût matériau', `× ${fmtNum.format(i.material.costFactor)}`],
-        ['Facteur poids matériau', `× ${fmtNum.format(i.material.weightFactor)}`],
-        ['Pression de service', `${fmtNum.format(i.pressure)} bar`],
-        ['Facteur pression (coût)', `× ${fmtNum.format(result.cost.pressureFactor)}`],
+      let rows = [
+        ['Équipement', `${eq.label} <span class="text-slate-400">(${eq.sector})</span>`]
+      ];
+
+      if (i.model === 'tank') {
+        rows.push(
+          ['Volume saisi', `${fmtNum.format(i.rawVolume)} ${i.unit === 'm3' ? 'm³' : 'L'} <span class="text-slate-400">(= ${fmtNum.format(i.volumeM3)} m³)</span>`],
+          ['Matériau', `${i.material.label}`],
+          ['Facteur coût matériau', `× ${fmtNum.format(i.material.costFactor)}`],
+          ['Facteur poids matériau', `× ${fmtNum.format(i.material.weightFactor)}`],
+          ['Pression de service', `${fmtNum.format(i.pressure)} bar`],
+          ['Facteur pression (coût)', `× ${fmtNum.format(result.cost.pressureFactor)}`]
+        );
+      } else if (i.model === 'pump') {
+        rows.push(
+          ['Débit nominal', `${fmtNum.format(i.flow)} m³/h`],
+          ['Hauteur manométrique', `${fmtNum.format(i.head)} m`],
+          ['Puissance hydraulique', `${fmtNum.format(result.powerKw)} kW`],
+          ['Type de pompe', `${i.pumpType.label}`],
+          ['Facteur coût type', `× ${fmtNum.format(i.pumpType.costFactor)}`],
+          ['Facteur poids type', `× ${fmtNum.format(i.pumpType.weightFactor)}`],
+          ['Matériau', `${i.material.label}`],
+          ['Facteur coût matériau', `× ${fmtNum.format(i.material.costFactor)}`],
+          ['Facteur poids matériau', `× ${fmtNum.format(i.material.weightFactor)}`]
+        );
+      }
+
+      rows.push(
         ['Pays d\'installation', `${i.country.label}`],
         ['Facteur pays', `× ${fmtNum.format(i.country.factor)}`],
         ['Coût nominal (€ HT)', `<span class="font-bold text-brand-800">${fmtEUR.format(result.cost.nominal)}</span>`],
         ['Poids nominal', `<span class="font-bold text-slate-800">${fmtKg.format(result.weight.nominal)} kg</span>`]
-      ];
+      );
 
       el.summary.innerHTML = rows.map(([k, v], idx) => `
         <tr class="${idx % 2 ? 'bg-white' : 'bg-slate-50/60'}">
@@ -579,9 +874,10 @@
      * ======================================================= */
     function onEstimate() {
       const id = el.equipment.value;
-      if (!TANK_IDS.has(id)) return; // guarded by UI, but double-check
+      const model = modelOf(id);
+      if (!model) return; // guarded by UI, but double-check
 
-      const input = readInputs();
+      const input = readInputs(model);
 
       if (input.errors.length) {
         el.validation.innerHTML = input.errors.map(e => '• ' + e).join('<br>');
@@ -606,13 +902,14 @@
       populateEquipment();
       populateMaterials();
       populateCountries();
+      populatePumpTypes();
       el.year.textContent = new Date().getFullYear();
 
       el.equipment.addEventListener('change', onEquipmentChange);
       el.estimate.addEventListener('click', onEstimate);
 
       // Allow Enter key inside numeric fields to trigger estimation
-      [el.volume, el.pressure].forEach(inp => {
+      [el.volume, el.pressure, el.flow, el.head].forEach(inp => {
         inp.addEventListener('keydown', e => {
           if (e.key === 'Enter') { e.preventDefault(); onEstimate(); }
         });
