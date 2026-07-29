@@ -1,0 +1,49 @@
+# =========================================================================
+#  Déploiement GitHub Pages — CAPEX Suite
+# -------------------------------------------------------------------------
+#  L'application vit dans frontend/. GitHub Pages en mode « branche » ne
+#  peut servir que la racine ou /docs ; ce workflow publie donc le contenu
+#  de frontend/ comme racine du site via GitHub Actions.
+#
+#  >>> Après le premier run : dans Settings -> Pages, régler
+#      « Build and deployment » -> Source = GitHub Actions. <<<
+# =========================================================================
+name: Deploy frontend to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # permet un déclenchement manuel depuis l'onglet Actions
+
+# Permissions requises par le déploiement Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Un seul déploiement à la fois ; annule les runs en cours si un nouveau arrive.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload frontend/ as artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
