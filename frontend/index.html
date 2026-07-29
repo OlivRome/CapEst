@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CAPEX Suite — Portail des outils</title>
+  <meta name="description" content="Portail des outils CAPEX : structures de projet, estimation d'équipement, estimation de projet et contrôle des coûts." />
+
+  <!-- Tailwind CSS via CDN + configuration du thème (partagée) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="shared/config/tailwind-config.js"></script>
+
+  <!-- Police Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Styles partagés -->
+  <link rel="stylesheet" href="shared/css/base.css" />
+
+  <!-- Logique de la page d'accueil (module ES) -->
+  <script type="module" src="home.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col">
+
+  <!-- En-tête partagé (rempli par layout.js). data-base = racine frontend/ -->
+  <header id="app-header" data-base="./" data-active="__home__"></header>
+
+  <!-- ============ CONTENU ============ -->
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+
+    <!-- Accroche -->
+    <section class="text-center max-w-3xl mx-auto">
+      <h2 class="text-2xl sm:text-3xl font-extrabold text-brand-900 tracking-tight">
+        Suite d'outils d'ingénierie CAPEX
+      </h2>
+      <p class="mt-3 text-slate-600 text-sm sm:text-base">
+        Sélectionnez un module pour démarrer. Chaque outil couvre une étape du cycle
+        d'estimation et de contrôle des coûts d'un projet d'investissement.
+      </p>
+    </section>
+
+    <!-- Grille des modules (générée par home.js) -->
+    <section aria-label="Modules disponibles">
+      <div id="module-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <!-- Cartes injectées par JavaScript -->
+      </div>
+    </section>
+  </main>
+
+  <!-- Pied de page partagé (rempli par layout.js) -->
+  <footer id="app-footer"></footer>
+</body>
+</html>

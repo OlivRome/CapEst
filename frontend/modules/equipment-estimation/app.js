@@ -18,6 +18,9 @@
 
 import { Store, findEquipment, modelOf, estimate } from './model.js';
 import { buildSchematic } from './schematics.js';
+/* Éléments partagés de la suite (en-tête/pied de page + formateurs). */
+import { renderHeader, renderFooter } from '../../shared/js/layout.js';
+import { fmtEUR, fmtKg, fmtNum } from '../../shared/js/format.js';
 
 /* =========================================================================
  *  1. RÉFÉRENCES DOM
@@ -48,20 +51,11 @@ const el = {
   weightMin: document.getElementById('weightMin'),
   weightNom: document.getElementById('weightNom'),
   weightMax: document.getElementById('weightMax'),
-  summary: document.getElementById('summary'),
-  year: document.getElementById('year')
+  summary: document.getElementById('summary')
 };
 
-/* =========================================================================
- *  2. FORMATEURS D'AFFICHAGE (locale fr-FR)
- * ========================================================================= */
-const fmtEUR = new Intl.NumberFormat('fr-FR', {
-  style: 'currency',
-  currency: 'EUR',
-  maximumFractionDigits: 0
-});
-const fmtKg = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
-const fmtNum = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
+/* Formateurs d'affichage : importés depuis shared/js/format.js
+   (fmtEUR, fmtKg, fmtNum) pour une présentation homogène dans toute la suite. */
 
 /* =========================================================================
  *  3. REMPLISSAGE DES MENUS DÉROULANTS (données lues depuis le Store)
@@ -338,11 +332,14 @@ async function onEstimate() {
  *  9. INITIALISATION
  * ========================================================================= */
 function init() {
+  /* En-tête et pied de page partagés à toute la suite. */
+  renderHeader();
+  renderFooter();
+
   populateEquipment();
   populateMaterials();
   populateCountries();
   populatePumpTypes();
-  el.year.textContent = new Date().getFullYear();
 
   el.equipment.addEventListener('change', onEquipmentChange);
   el.estimate.addEventListener('click', onEstimate);
