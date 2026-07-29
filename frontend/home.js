@@ -5,8 +5,8 @@
  *  et met en place l'en-tête / le pied de page communs.
  * ========================================================================= */
 
-import { MODULES } from './shared/js/modules.js';
-import { renderHeader, renderFooter } from './shared/js/layout.js';
+import { MODULES } from './shared/js/modules.js?v=3.3';
+import { renderHeader, renderFooter } from './shared/js/layout.js?v=3.3';
 
 /* Construit la carte HTML d'un module. */
 function moduleCard(m) {

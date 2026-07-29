@@ -16,14 +16,14 @@
  *  INCHANGÉ. C'est tout l'intérêt de la frontière asynchrone.
  * ========================================================================= */
 
-import { Store, findEquipment, modelOf, estimate } from './model.js';
-import { buildSchematic } from './schematics.js';
+import { Store, findEquipment, modelOf, estimate } from './model.js?v=3.3';
+import { buildSchematic } from './schematics.js?v=3.3';
 /* Éléments partagés de la suite (en-tête/pied de page + formateurs). */
-import { renderHeader, renderFooter } from '../../shared/js/layout.js';
-import { fmtEUR, fmtKg, fmtNum } from '../../shared/js/format.js';
+import { renderHeader, renderFooter } from '../../shared/js/layout.js?v=3.3';
+import { fmtEUR, fmtKg, fmtNum } from '../../shared/js/format.js?v=3.3';
 /* Dépôt des projets (async) + correspondance équipement -> catégorie de grille. */
-import { ProjectRepository } from '../../shared/js/projects-repo.js';
-import { categoryOf } from '../project-estimation/grid-config.js';
+import { ProjectRepository } from '../../shared/js/projects-repo.js?v=3.3';
+import { categoryOf } from '../project-estimation/grid-config.js?v=3.3';
 
 /* =========================================================================
  *  1. RÉFÉRENCES DOM

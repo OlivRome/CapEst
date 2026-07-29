@@ -2,8 +2,8 @@
  *  Project Estimation — VUE LISTE + CRÉATION DE PROJET
  * ========================================================================= */
 
-import { fmtEUR } from '../../../shared/js/format.js';
-import { ProjectRepository } from '../../../shared/js/projects-repo.js';
+import { fmtEUR } from '../../../shared/js/format.js?v=3.3';
+import { ProjectRepository } from '../../../shared/js/projects-repo.js?v=3.3';
 
 /* Liste de pays réutilisée pour le formulaire (alignée sur le module Equipment). */
 const COUNTRIES = [

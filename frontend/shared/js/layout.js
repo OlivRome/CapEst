@@ -17,8 +17,8 @@
  *    data-active : id du module courant (onglet mis en évidence) — optionnel
  * ========================================================================= */
 
-import { MODULES } from './modules.js';
-import { APP_VERSION } from './version.js';
+import { MODULES } from './modules.js?v=3.3';
+import { APP_VERSION } from './version.js?v=3.3';
 
 /* Icône « usine » de la marque (réutilisée dans l'en-tête). */
 const BRAND_ICON = `

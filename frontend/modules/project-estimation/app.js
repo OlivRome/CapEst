@@ -9,11 +9,11 @@
  *  n'est manipulée directement ici, ce qui prépare la migration vers une BDD.
  * ========================================================================= */
 
-import { renderHeader, renderFooter } from '../../shared/js/layout.js';
-import { fmtEUR, fmtKg, fmtNum } from '../../shared/js/format.js';
-import { ProjectRepository } from '../../shared/js/projects-repo.js';
-import { renderProjectList } from './views/list.js';
-import { renderProjectDetail } from './views/detail.js';
+import { renderHeader, renderFooter } from '../../shared/js/layout.js?v=3.3';
+import { fmtEUR, fmtKg, fmtNum } from '../../shared/js/format.js?v=3.3';
+import { ProjectRepository } from '../../shared/js/projects-repo.js?v=3.3';
+import { renderProjectList } from './views/list.js?v=3.3';
+import { renderProjectDetail } from './views/detail.js?v=3.3';
 
 /* Conteneur unique où les vues sont rendues. */
 const viewEl = () => document.getElementById('view');

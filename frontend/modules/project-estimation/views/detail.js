@@ -16,15 +16,15 @@
  *  de catégorie, via ProjectRepository (async).
  * ========================================================================= */
 
-import { fmtEUR, fmtKg, fmtNum } from '../../../shared/js/format.js';
-import { ProjectRepository } from '../../../shared/js/projects-repo.js';
+import { fmtEUR, fmtKg, fmtNum } from '../../../shared/js/format.js?v=3.3';
+import { ProjectRepository } from '../../../shared/js/projects-repo.js?v=3.3';
 import {
   MAIN_EQUIPMENT,
   BULK_MATERIAL,
   MAIN_COLUMNS,
   BULK_COLUMNS,
   computeCell
-} from '../grid-config.js';
+} from '../grid-config.js?v=3.3';
 
 /* Échappe le texte pour éviter toute injection dans le HTML. */
 function esc(s) {

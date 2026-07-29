@@ -7,8 +7,8 @@
  *  est tiré du registre modules.js + d'un descriptif local optionnel.
  * ========================================================================= */
 
-import { findModule } from './modules.js';
-import { renderHeader, renderFooter } from './layout.js';
+import { findModule } from './modules.js?v=3.3';
+import { renderHeader, renderFooter } from './layout.js?v=3.3';
 
 /* Points fonctionnels prévus par module (feuille de route indicative). */
 const ROADMAP = {
