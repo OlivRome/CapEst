@@ -18,6 +18,7 @@
  * ========================================================================= */
 
 import { MODULES } from './modules.js';
+import { APP_VERSION } from './version.js';
 
 /* Icône « usine » de la marque (réutilisée dans l'en-tête). */
 const BRAND_ICON = `
@@ -70,8 +71,11 @@ export function renderHeader() {
             ${BRAND_ICON}
           </div>
           <div>
-            <h1 class="text-lg sm:text-xl lg:text-2xl font-extrabold tracking-tight leading-tight">
+            <h1 class="text-lg sm:text-xl lg:text-2xl font-extrabold tracking-tight leading-tight flex items-center gap-2">
               CAPEX Suite
+              <span class="text-[10px] sm:text-xs font-semibold uppercase tracking-wide bg-white/15 text-brand-100 ring-1 ring-white/20 px-2 py-0.5 rounded-full">
+                v${APP_VERSION}
+              </span>
             </h1>
             <p class="text-brand-100 text-xs sm:text-sm font-medium">
               Outils d'ingénierie CAPEX &nbsp;•&nbsp; Life Sciences &amp; Oil &amp; Gas
