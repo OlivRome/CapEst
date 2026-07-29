@@ -351,27 +351,32 @@ async function onEstimate() {
  *  ne connaît que le contrat EstimationItem, prête pour un back-end.
  * ========================================================================= */
 
-/* Remplit le menu déroulant des projets cibles (les plus récents d'abord). */
+/* Valeur spéciale du menu : crée un nouveau projet « Projet à définir ». */
+const NEW_PROJECT_VALUE = '__new__';
+
+/* Remplit le menu déroulant des projets cibles (les plus récents d'abord).
+   Une option « Nouveau projet » est toujours proposée en tête ; elle crée
+   à la volée un projet nommé « Projet à définir ». */
 async function refreshProjectSelect() {
   if (!el.addProject) return;
   const selected = el.addProject.value; // conserve la sélection si possible
   const projects = await ProjectRepository.list();
 
-  if (!projects.length) {
-    el.addProject.innerHTML =
-      '<option value="" disabled selected>— Aucun projet : créez-en un d\'abord —</option>';
-    el.addToProject.disabled = true;
-    el.addToProject.classList.add('opacity-50', 'cursor-not-allowed');
-    return;
-  }
-
-  el.addProject.innerHTML = projects
+  /* Option « Nouveau » toujours disponible + un item par projet existant. */
+  const newOption = `<option value="${NEW_PROJECT_VALUE}">➕ Nouveau projet (« Projet à définir »)</option>`;
+  const projectOptions = projects
     .map((p) => `<option value="${p.id}">${p.name}</option>`)
     .join('');
-  /* Restaure la sélection précédente si elle existe encore. */
-  if (selected && projects.some((p) => p.id === selected)) {
+  el.addProject.innerHTML = newOption + projectOptions;
+
+  /* Restaure la sélection précédente si elle existe encore, sinon « Nouveau ». */
+  if (selected && (selected === NEW_PROJECT_VALUE || projects.some((p) => p.id === selected))) {
     el.addProject.value = selected;
+  } else {
+    el.addProject.value = NEW_PROJECT_VALUE;
   }
+
+  /* Le bouton est toujours actif : « Nouveau » crée un projet à la volée. */
   el.addToProject.disabled = false;
   el.addToProject.classList.remove('opacity-50', 'cursor-not-allowed');
 }
@@ -403,7 +408,7 @@ async function onAddToProject() {
     showAddFeedback("Lancez d'abord une estimation.", false);
     return;
   }
-  const projectId = el.addProject.value;
+  let projectId = el.addProject.value;
   if (!projectId) {
     showAddFeedback('Sélectionnez un projet cible.', false);
     return;
@@ -427,8 +432,21 @@ async function onAddToProject() {
 
   el.addToProject.disabled = true;
   try {
+    /* Option « Nouveau » : on crée d'abord un projet « Projet à définir ». */
+    let createdNew = false;
+    if (projectId === NEW_PROJECT_VALUE) {
+      const project = await ProjectRepository.create({ name: 'Projet à définir' });
+      projectId = project.id;
+      createdNew = true;
+    }
+
     await ProjectRepository.addItem(projectId, item);
-    showAddFeedback('Équipement ajouté au projet ✓', true);
+    await refreshProjectSelect(); // rafraîchit la liste (nouveau projet inclus)
+    el.addProject.value = projectId; // sélectionne le projet cible
+    showAddFeedback(
+      createdNew ? 'Projet « Projet à définir » créé et équipement ajouté ✓' : 'Équipement ajouté au projet ✓',
+      true
+    );
   } catch (err) {
     console.error(err);
     showAddFeedback("Ajout impossible : " + (err.message || err), false);

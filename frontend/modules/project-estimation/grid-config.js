@@ -1,16 +1,23 @@
 /* =========================================================================
  *  Project Estimation — CONFIGURATION DE LA GRILLE D'ESTIMATION
  * -------------------------------------------------------------------------
- *  Décrit les lignes de la grille CAPEX (inspirée du modèle Excel fourni) :
- *  « Main Equipment » et « Bulk Material », chacune avec son code, son
- *  libellé et l'unité de la grandeur caractéristique.
+ *  Décrit la grille CAPEX (reproduisant le modèle Excel fourni) :
+ *  deux sections « Main Equipment » et « Bulk Material ».
  *
- *  La correspondance equipmentId -> code de catégorie permet de router
- *  automatiquement un équipement estimé (module Equipment Estimation) vers
- *  la bonne ligne de la grille.
+ *  Chaque section possède SES PROPRES colonnes, chacune typée :
+ *    type: 'input' -> zone de saisie utilisateur      (fond BLANC)
+ *    type: 'calc'  -> valeur calculée automatiquement  (fond JAUNE)
+ *
+ *  Les FORMULES des colonnes calculées sont des fonctions PURES
+ *  (computeMain / computeBulk) : aucun accès au DOM. Elles pourront donc
+ *  être déplacées telles quelles côté back-end le moment venu.
  * ========================================================================= */
 
-/* Lignes de la section « Main Equipment ». */
+/* -------------------------------------------------------------------------
+ *  Lignes des deux sections (code / libellé / unité de la grandeur).
+ * ----------------------------------------------------------------------- */
+
+/* Section « Main Equipment ». */
 export const MAIN_EQUIPMENT = [
   { code: '01', label: 'Fired Equipment', unit: 'mW' },
   { code: '02', label: 'Water Treatment', unit: 'm³/h' },
@@ -30,7 +37,7 @@ export const MAIN_EQUIPMENT = [
   { code: '26', label: 'AC', unit: 'm³' }
 ];
 
-/* Lignes de la section « Bulk Material ». */
+/* Section « Bulk Material ». */
 export const BULK_MATERIAL = [
   { code: '20', label: 'Buildings', unit: 'm²' },
   { code: '13', label: 'A/G Piping, Dia < 48"', unit: 'tons' },
@@ -53,17 +60,101 @@ export const BULK_MATERIAL = [
   { code: '23', label: 'Painting', unit: 'm²' }
 ];
 
-/* Colonnes saisissables (zones blanches du modèle) par ligne de la grille. */
-export const EDITABLE_COLUMNS = [
-  { key: 'itemsNb', label: 'Items nb' },
-  { key: 'equiptNb', label: 'Equipt nb' },
-  { key: 'quantity', label: 'Charac. Qty' },
-  { key: 'supply', label: 'Supply (€)' },
-  { key: 'installation', label: 'Installation (€)' },
-  { key: 'weightTons', label: 'Weight (t)' }
+/* -------------------------------------------------------------------------
+ *  Définition des colonnes de chaque section.
+ *  Attributs :
+ *    key    : clé de stockage dans la cellule
+ *    label  : en-tête affiché
+ *    type   : 'input' (blanc, saisissable) | 'calc' (jaune, calculé)
+ *    money  : true -> formaté en euros
+ *    weight : true -> colonne « poids » (teinte ardoise, comme le module
+ *             Equipment Estimation)
+ * ----------------------------------------------------------------------- */
+
+/* Colonnes de la section « Main Equipment » (ordre = celui du modèle Excel). */
+export const MAIN_COLUMNS = [
+  { key: 'itemsNb', label: 'Items nb', type: 'input' },
+  { key: 'equiptNb', label: 'Equipt nb', type: 'input' },
+  { key: 'quantity', label: 'Charac. Qty', type: 'input' },
+  { key: 'supply', label: 'Supply (€)', type: 'input', money: true },
+  { key: 'installation', label: 'Installation (€)', type: 'calc', money: true },
+  { key: 'installVendors', label: 'Installation by Vendors (€)', type: 'input', money: true },
+  { key: 'weightTons', label: 'Weight (t)', type: 'input', weight: true },
+  { key: 'fieldMhrs', label: 'Field Mhrs (Standard)', type: 'calc' },
+  { key: 'costPerKg', label: 'EUR / kg', type: 'calc' },
+  { key: 'eurPerEquipt', label: 'EUR / Equipt', type: 'calc', money: true }
 ];
 
-/* Correspondance equipmentId (module Equipment) -> code de catégorie de la grille. */
+/* Colonnes de la section « Bulk Material » (pas de poids ni de nombre). */
+export const BULK_COLUMNS = [
+  { key: 'quantity', label: 'Quantities', type: 'input' },
+  { key: 'supply', label: 'Supply (€)', type: 'input', money: true },
+  { key: 'installation', label: 'Installation (€)', type: 'calc', money: true },
+  { key: 'subcontract', label: 'Sub Contract (€)', type: 'calc', money: true },
+  { key: 'fieldMhrs', label: 'Field Mhrs (Standard)', type: 'calc' }
+];
+
+/* -------------------------------------------------------------------------
+ *  Facteurs de calcul (hypothèses paramétriques, ajustables au même titre
+ *  que MODEL_PARAMS du module Equipment). Regroupés ici pour être modifiés
+ *  sans toucher aux formules.
+ * ----------------------------------------------------------------------- */
+export const CALC_FACTORS = {
+  installFactor: 0.2, // Installation = Supply × 20 %
+  manhoursPerTon: 30, // Field Mhrs (Main) = Poids (t) × 30 h/t
+  hourlyRate: 60, // €/h — conversion coût d'installation -> heures (Bulk)
+  subcontractFactor: 0.1 // Sub Contract = Supply × 10 %
+};
+
+/* Convertit une valeur de cellule en nombre (chaîne vide -> 0). */
+function num(v) {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/* -------------------------------------------------------------------------
+ *  FORMULES DES COLONNES CALCULÉES (fonctions pures).
+ *  Renvoient toutes les valeurs jaunes + le coût de ligne.
+ * ----------------------------------------------------------------------- */
+
+/* Section « Main Equipment ». */
+export function computeMain(cell) {
+  const supply = num(cell.supply);
+  const weightT = num(cell.weightTons);
+  const equiptNb = num(cell.equiptNb);
+  const installVendors = num(cell.installVendors);
+
+  const installation = supply * CALC_FACTORS.installFactor;
+  const fieldMhrs = weightT * CALC_FACTORS.manhoursPerTon;
+  const costPerKg = weightT > 0 ? supply / (weightT * 1000) : 0; // €/kg
+  const eurPerEquipt = equiptNb > 0 ? supply / equiptNb : 0;
+
+  const rowCost = supply + installation + installVendors;
+
+  return { installation, fieldMhrs, costPerKg, eurPerEquipt, rowCost };
+}
+
+/* Section « Bulk Material ». */
+export function computeBulk(cell) {
+  const supply = num(cell.supply);
+
+  const installation = supply * CALC_FACTORS.installFactor;
+  const subcontract = supply * CALC_FACTORS.subcontractFactor;
+  const fieldMhrs = CALC_FACTORS.hourlyRate > 0 ? installation / CALC_FACTORS.hourlyRate : 0;
+
+  const rowCost = supply + installation + subcontract;
+
+  return { installation, subcontract, fieldMhrs, rowCost };
+}
+
+/* Renvoie l'objet de valeurs calculées pour une cellule d'une section. */
+export function computeCell(sectionId, cell) {
+  return sectionId === 'bulk' ? computeBulk(cell) : computeMain(cell);
+}
+
+/* -------------------------------------------------------------------------
+ *  Correspondance equipmentId (module Equipment) -> code de catégorie.
+ * ----------------------------------------------------------------------- */
 export const EQUIPMENT_TO_CATEGORY = {
   ls_prep_tank: '25', // Storage Tank
   ut_pressure_vessel: '08', // Drums (capacité sous pression)

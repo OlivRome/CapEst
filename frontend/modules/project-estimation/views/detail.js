@@ -1,21 +1,30 @@
 /* =========================================================================
  *  Project Estimation — VUE DÉTAIL D'UN PROJET (grille d'estimation)
  * -------------------------------------------------------------------------
- *  Affiche :
- *    1. L'en-tête du projet (nom, client, pays, date) + retour à la liste.
- *    2. Les équipements ajoutés depuis le module Equipment Estimation
- *       (suppression possible ligne par ligne).
- *    3. La grille d'estimation CAPEX (« Main Equipment » + « Bulk Material »)
- *       inspirée du modèle Excel : les colonnes blanches sont saisissables et
- *       persistées automatiquement dans le projet.
+ *  Reproduit le modèle Excel fourni :
+ *    - Colonnes BLANCHES  = zones de saisie utilisateur (type 'input').
+ *    - Colonnes JAUNES    = valeurs calculées (type 'calc'), recalculées à
+ *                           chaque frappe.
+ *    - Colonne « Weight » = teinte ardoise (comme le résultat « poids » du
+ *                           module Equipment Estimation).
  *
- *  Toute la persistance passe par ProjectRepository (async) : la grille est
- *  stockée dans le champ `grid` du projet, indexée par code de catégorie.
+ *  Chaque section (Main Equipment / Bulk Material) a ses propres colonnes,
+ *  décrites dans grid-config.js. Les formules calculées y sont également
+ *  définies (fonctions pures), prêtes à migrer côté back-end.
+ *
+ *  Persistance : la grille est stockée dans project.grid, indexée par code
+ *  de catégorie, via ProjectRepository (async).
  * ========================================================================= */
 
 import { fmtEUR, fmtKg, fmtNum } from '../../../shared/js/format.js';
 import { ProjectRepository } from '../../../shared/js/projects-repo.js';
-import { MAIN_EQUIPMENT, BULK_MATERIAL, EDITABLE_COLUMNS } from '../grid-config.js';
+import {
+  MAIN_EQUIPMENT,
+  BULK_MATERIAL,
+  MAIN_COLUMNS,
+  BULK_COLUMNS,
+  computeCell
+} from '../grid-config.js';
 
 /* Échappe le texte pour éviter toute injection dans le HTML. */
 function esc(s) {
@@ -46,88 +55,138 @@ function itemsWeight(project) {
   );
 }
 
-/* Coût d'une ligne de grille = fourniture + installation. */
-function rowCost(cell) {
-  return toNum(cell.supply) + toNum(cell.installation);
+/* Formate une valeur calculée selon le type de colonne. */
+function fmtCalc(col, value) {
+  if (col.money) return fmtEUR.format(value);
+  if (col.key === 'costPerKg') return fmtNum.format(value); // €/kg (2 déc.)
+  if (col.key === 'fieldMhrs') return fmtNum.format(value); // heures
+  return fmtNum.format(value);
 }
 
-/* Total coût d'une section de grille (Main Equipment ou Bulk Material). */
-function sectionCost(grid, defs) {
-  return defs.reduce((sum, def) => sum + rowCost(grid[def.code] || {}), 0);
+/* Total (somme) d'une colonne sur une section. */
+function columnTotal(defs, grid, col, sectionId) {
+  return defs.reduce((sum, def) => {
+    const cell = grid[def.code] || {};
+    if (col.type === 'calc') {
+      return sum + (computeCell(sectionId, cell)[col.key] || 0);
+    }
+    return sum + toNum(cell[col.key]);
+  }, 0);
 }
 
-/* Total poids (tonnes) d'une section de grille. */
-function sectionWeight(grid, defs) {
-  return defs.reduce((sum, def) => sum + toNum((grid[def.code] || {}).weightTons), 0);
+/* Coût total (somme des coûts de ligne) d'une section. */
+function sectionCost(defs, grid, sectionId) {
+  return defs.reduce((sum, def) => sum + computeCell(sectionId, grid[def.code] || {}).rowCost, 0);
 }
 
-/* Construit les cellules saisissables d'une ligne de grille. */
-function rowInputs(code, cell) {
-  return EDITABLE_COLUMNS.map((col) => {
+/* -----------------------------------------------------------------------
+ *  Construction d'une cellule de colonne (input blanc ou calc jaune).
+ * --------------------------------------------------------------------- */
+function renderColumnCell(sectionId, code, col, cell) {
+  if (col.type === 'input') {
+    /* Zone de saisie utilisateur (fond blanc ; ardoise pour le poids). */
+    const inputBg = col.weight ? 'bg-slate-50 focus:bg-white' : 'bg-white';
+    const ring = col.weight ? 'focus:ring-slate-300 focus:border-slate-500' : 'focus:ring-brand-200 focus:border-brand-500';
     const val = cell[col.key];
     return `
-      <td class="px-2 py-1.5 border-l border-slate-100">
+      <td class="px-1.5 py-1 border-l border-slate-100 ${col.weight ? 'bg-slate-50/50' : ''}">
         <input type="number" step="any" min="0"
-          data-code="${code}" data-key="${col.key}"
+          data-code="${esc(code)}" data-key="${esc(col.key)}"
           value="${val === undefined || val === null ? '' : esc(val)}"
-          class="grid-input w-full rounded border border-slate-200 bg-white px-2 py-1 text-sm text-right
-                 focus:border-brand-500 focus:ring-1 focus:ring-brand-200 focus:bg-white" />
+          class="grid-input w-full rounded border border-slate-200 ${inputBg} px-2 py-1 text-sm text-right ${ring} focus:ring-1" />
       </td>`;
-  }).join('');
+  }
+
+  /* Colonne calculée (fond jaune, lecture seule). */
+  const computed = computeCell(sectionId, cell);
+  return `
+    <td class="px-2 py-1 border-l border-amber-100 bg-amber-50 text-right text-sm text-amber-900 tabular-nums"
+        data-calc="${esc(code)}:${esc(col.key)}">${fmtCalc(col, computed[col.key] || 0)}</td>`;
 }
 
-/* Construit les lignes HTML d'une section de grille. */
-function sectionRows(grid, defs) {
-  return defs
-    .map((def) => {
-      const cell = grid[def.code] || {};
-      return `
-      <tr class="hover:bg-slate-50/60">
-        <td class="px-3 py-1.5 text-xs font-mono text-slate-400 whitespace-nowrap">${esc(def.code)}</td>
-        <td class="px-3 py-1.5 text-sm text-slate-700 font-medium whitespace-nowrap">${esc(def.label)}</td>
-        <td class="px-3 py-1.5 text-xs text-slate-400 whitespace-nowrap">${esc(def.unit) || '—'}</td>
-        ${rowInputs(def.code, cell)}
-        <td class="px-3 py-1.5 text-sm text-right font-semibold text-brand-800 whitespace-nowrap bg-slate-50"
-            data-rowcost="${esc(def.code)}">${fmtEUR.format(rowCost(cell))}</td>
-      </tr>`;
+/* Construit une ligne complète d'une section. */
+function renderRow(sectionId, def, columns, grid) {
+  const cell = grid[def.code] || {};
+  const cells = columns.map((col) => renderColumnCell(sectionId, def.code, col, cell)).join('');
+  const rowCost = computeCell(sectionId, cell).rowCost;
+  return `
+    <tr class="hover:bg-slate-50/60">
+      <td class="px-3 py-1 text-xs font-mono text-slate-400 whitespace-nowrap">${esc(def.code)}</td>
+      <td class="px-3 py-1 text-sm text-slate-700 font-medium whitespace-nowrap">${esc(def.label)}</td>
+      <td class="px-3 py-1 text-xs text-slate-400 whitespace-nowrap">${esc(def.unit) || '—'}</td>
+      ${cells}
+      <td class="px-3 py-1 text-sm text-right font-semibold text-amber-900 whitespace-nowrap bg-amber-50 border-l border-amber-100"
+          data-rowcost="${esc(def.code)}">${fmtEUR.format(rowCost)}</td>
+    </tr>`;
+}
+
+/* En-tête de colonnes d'une section (marque visuellement input vs calc). */
+function renderHead(columns) {
+  const cols = columns
+    .map((col) => {
+      const tint = col.type === 'calc'
+        ? 'bg-amber-100 text-amber-800'
+        : col.weight
+          ? 'bg-slate-100 text-slate-600'
+          : 'bg-white text-slate-500';
+      return `<th class="px-2 py-2 font-semibold text-right border-l border-slate-200 ${tint}">${esc(col.label)}</th>`;
     })
     .join('');
+  return `
+    <tr class="text-left text-[11px] uppercase tracking-wide border-b border-slate-200">
+      <th class="px-3 py-2 font-semibold bg-slate-50 text-slate-500">Code</th>
+      <th class="px-3 py-2 font-semibold bg-slate-50 text-slate-500">Catégorie</th>
+      <th class="px-3 py-2 font-semibold bg-slate-50 text-slate-500">Unité</th>
+      ${cols}
+      <th class="px-3 py-2 font-semibold text-right bg-amber-100 text-amber-800 border-l border-amber-200">Coût ligne</th>
+    </tr>`;
 }
 
-/* En-têtes de colonnes de la grille. */
-function gridHead() {
-  const editable = EDITABLE_COLUMNS.map(
-    (c) => `<th class="px-2 py-2 font-semibold text-right border-l border-slate-200">${esc(c.label)}</th>`
-  ).join('');
+/* Pied de section : total par colonne + coût total de la section. */
+function renderFoot(sectionId, columns, defs, grid) {
+  const cols = columns
+    .map((col) => {
+      /* On ne totalise que les colonnes monétaires et le poids/heures. */
+      const totalable = col.money || col.weight || col.key === 'fieldMhrs';
+      if (!totalable) {
+        return `<td class="px-2 py-2 border-l border-slate-200"></td>`;
+      }
+      const total = columnTotal(defs, grid, col, sectionId);
+      const tint = col.type === 'calc' ? 'bg-amber-100 text-amber-900' : 'bg-slate-50 text-slate-700';
+      return `<td class="px-2 py-2 text-right border-l border-slate-200 ${tint}" data-coltotal="${sectionId}:${esc(col.key)}">${fmtCalc(
+        col,
+        total
+      )}</td>`;
+    })
+    .join('');
   return `
-    <tr class="text-left text-[11px] uppercase tracking-wide text-slate-500 border-b border-slate-200 bg-slate-50">
-      <th class="px-3 py-2 font-semibold">Code</th>
-      <th class="px-3 py-2 font-semibold">Catégorie</th>
-      <th class="px-3 py-2 font-semibold">Unité</th>
-      ${editable}
-      <th class="px-3 py-2 font-semibold text-right">Coût ligne</th>
+    <tr class="border-t-2 border-slate-200 font-bold text-brand-900">
+      <td class="px-3 py-2 bg-slate-50" colspan="3">Sous-total</td>
+      ${cols}
+      <td class="px-3 py-2 text-right bg-amber-100 text-amber-900 border-l border-amber-200" data-sectiontotal="${sectionId}">${fmtEUR.format(
+        sectionCost(defs, grid, sectionId)
+      )}</td>
     </tr>`;
 }
 
 /* Bloc « section » complet (titre + tableau). */
-function gridSection(title, grid, defs, sectionId) {
+function renderSection(title, sectionId, defs, columns, grid) {
   return `
     <div class="bg-white rounded-2xl shadow-sm ring-1 ring-slate-200 overflow-hidden">
-      <div class="px-6 py-3 border-b border-slate-200 bg-brand-50">
+      <div class="px-6 py-3 border-b border-slate-200 bg-brand-50 flex items-center justify-between">
         <h3 class="text-sm font-bold text-brand-900 uppercase tracking-wide">${esc(title)}</h3>
+        <div class="flex items-center gap-3 text-[11px] text-slate-500">
+          <span class="inline-flex items-center gap-1"><span class="inline-block h-3 w-3 rounded-sm bg-white ring-1 ring-slate-300"></span>Saisie</span>
+          <span class="inline-flex items-center gap-1"><span class="inline-block h-3 w-3 rounded-sm bg-amber-100 ring-1 ring-amber-300"></span>Calculé</span>
+        </div>
       </div>
       <div class="overflow-x-auto">
         <table class="min-w-full text-sm">
-          <thead>${gridHead()}</thead>
-          <tbody class="divide-y divide-slate-100">${sectionRows(grid, defs)}</tbody>
-          <tfoot>
-            <tr class="border-t-2 border-slate-200 bg-slate-50 font-bold text-brand-900">
-              <td class="px-3 py-2" colspan="${3 + EDITABLE_COLUMNS.length}">Sous-total ${esc(title)}</td>
-              <td class="px-3 py-2 text-right" data-sectiontotal="${sectionId}">${fmtEUR.format(
-                sectionCost(grid, defs)
-              )}</td>
-            </tr>
-          </tfoot>
+          <thead>${renderHead(columns)}</thead>
+          <tbody class="divide-y divide-slate-100">
+            ${defs.map((def) => renderRow(sectionId, def, columns, grid)).join('')}
+          </tbody>
+          <tfoot>${renderFoot(sectionId, columns, defs, grid)}</tfoot>
         </table>
       </div>
     </div>`;
@@ -185,14 +244,14 @@ export async function renderProjectDetail(host, id) {
         )
         .join('')
     : `<tr><td colspan="7" class="px-4 py-6 text-center text-slate-400 text-sm">
-         Aucun équipement ajouté. Utilisez « Ajouter au Projet » depuis le module Equipment Estimation.
+         Aucun équipement ajouté. Utilisez « Ajouter au projet » depuis le module Equipment Estimation.
        </td></tr>`;
 
-  const mainTotal = sectionCost(grid, MAIN_EQUIPMENT);
-  const bulkTotal = sectionCost(grid, BULK_MATERIAL);
+  const mainTotal = sectionCost(MAIN_EQUIPMENT, grid, 'main');
+  const bulkTotal = sectionCost(BULK_MATERIAL, grid, 'bulk');
   const equipTotal = itemsTotal(project);
   const equipWeight = itemsWeight(project);
-  const gridWeightT = sectionWeight(grid, MAIN_EQUIPMENT) + sectionWeight(grid, BULK_MATERIAL);
+  const gridWeightT = columnTotal(MAIN_EQUIPMENT, grid, { key: 'weightTons', type: 'input' }, 'main');
   const grandTotal = mainTotal + bulkTotal + equipTotal;
 
   host.innerHTML = `
@@ -247,7 +306,7 @@ export async function renderProjectDetail(host, id) {
         </div>
         <div class="bg-white rounded-xl ring-1 ring-slate-200 p-4">
           <p class="text-xs uppercase tracking-wide text-slate-400 font-semibold">Poids grille</p>
-          <p class="text-xl font-bold text-brand-800 mt-1" data-summary-weight>${fmtNum.format(gridWeightT)} t</p>
+          <p class="text-xl font-bold text-slate-700 mt-1" data-summary-weight>${fmtNum.format(gridWeightT)} t</p>
         </div>
       </div>
 
@@ -281,8 +340,8 @@ export async function renderProjectDetail(host, id) {
           <h3 class="text-lg font-extrabold text-brand-900 tracking-tight">Grille d'estimation CAPEX</h3>
           <span class="text-xs text-slate-400">Saisie automatiquement enregistrée</span>
         </div>
-        ${gridSection('Main Equipment', grid, MAIN_EQUIPMENT, 'main')}
-        ${gridSection('Bulk Material', grid, BULK_MATERIAL, 'bulk')}
+        ${renderSection('Main Equipment', 'main', MAIN_EQUIPMENT, MAIN_COLUMNS, grid)}
+        ${renderSection('Bulk Material', 'bulk', BULK_MATERIAL, BULK_COLUMNS, grid)}
       </section>
     </div>`;
 
@@ -290,12 +349,12 @@ export async function renderProjectDetail(host, id) {
    *  Événements
    * --------------------------------------------------------------------- */
 
-  /* Recalcule et rafraîchit les totaux affichés (sans re-render complet). */
-  function refreshTotals(currentGrid) {
-    const main = sectionCost(currentGrid, MAIN_EQUIPMENT);
-    const bulk = sectionCost(currentGrid, BULK_MATERIAL);
+  /* Recalcule et rafraîchit tous les totaux + cartes de synthèse. */
+  function refreshTotals() {
+    const main = sectionCost(MAIN_EQUIPMENT, grid, 'main');
+    const bulk = sectionCost(BULK_MATERIAL, grid, 'bulk');
     const equip = itemsTotal(project);
-    const weightT = sectionWeight(currentGrid, MAIN_EQUIPMENT) + sectionWeight(currentGrid, BULK_MATERIAL);
+    const weightT = columnTotal(MAIN_EQUIPMENT, grid, { key: 'weightTons', type: 'input' }, 'main');
 
     host.querySelector('[data-summary-main]').textContent = fmtEUR.format(main);
     host.querySelector('[data-summary-bulk]').textContent = fmtEUR.format(bulk);
@@ -303,9 +362,33 @@ export async function renderProjectDetail(host, id) {
     host.querySelector('[data-sectiontotal="main"]').textContent = fmtEUR.format(main);
     host.querySelector('[data-sectiontotal="bulk"]').textContent = fmtEUR.format(bulk);
     host.querySelector('[data-grandtotal]').textContent = fmtEUR.format(main + bulk + equip);
+
+    /* Totaux par colonne (pieds de section). */
+    [['main', MAIN_EQUIPMENT, MAIN_COLUMNS], ['bulk', BULK_MATERIAL, BULK_COLUMNS]].forEach(
+      ([sectionId, defs, columns]) => {
+        columns.forEach((col) => {
+          const el = host.querySelector(`[data-coltotal="${sectionId}:${col.key}"]`);
+          if (el) el.textContent = fmtCalc(col, columnTotal(defs, grid, col, sectionId));
+        });
+      }
+    );
   }
 
-  /* Saisie dans la grille : mise à jour immédiate de la ligne + persistance. */
+  /* Rafraîchit les cellules calculées (jaunes) d'une ligne donnée. */
+  function refreshRow(sectionId, code, columns) {
+    const cell = grid[code] || {};
+    const computed = computeCell(sectionId, cell);
+    columns.forEach((col) => {
+      if (col.type === 'calc') {
+        const el = host.querySelector(`[data-calc="${code}:${col.key}"]`);
+        if (el) el.textContent = fmtCalc(col, computed[col.key] || 0);
+      }
+    });
+    const rowEl = host.querySelector(`[data-rowcost="${code}"]`);
+    if (rowEl) rowEl.textContent = fmtEUR.format(computed.rowCost);
+  }
+
+  /* Saisie dans la grille : recalcul immédiat de la ligne + totaux + persistance. */
   host.querySelectorAll('.grid-input').forEach((input) => {
     input.addEventListener('input', async () => {
       const code = input.dataset.code;
@@ -315,12 +398,13 @@ export async function renderProjectDetail(host, id) {
       grid[code] = grid[code] || {};
       grid[code][key] = input.value === '' ? '' : toNum(input.value);
 
-      /* Rafraîchit le coût de la ligne concernée. */
-      const rowCell = host.querySelector(`[data-rowcost="${code}"]`);
-      if (rowCell) rowCell.textContent = fmtEUR.format(rowCost(grid[code]));
+      /* Détermine la section de la ligne (Main ou Bulk). */
+      const isMain = MAIN_EQUIPMENT.some((d) => d.code === code);
+      const sectionId = isMain ? 'main' : 'bulk';
+      const columns = isMain ? MAIN_COLUMNS : BULK_COLUMNS;
 
-      /* Rafraîchit les totaux. */
-      refreshTotals(grid);
+      refreshRow(sectionId, code, columns);
+      refreshTotals();
 
       /* Persiste (async, point de migration BDD). */
       try {
