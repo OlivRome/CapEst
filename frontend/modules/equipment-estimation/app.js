@@ -21,6 +21,9 @@ import { buildSchematic } from './schematics.js';
 /* Éléments partagés de la suite (en-tête/pied de page + formateurs). */
 import { renderHeader, renderFooter } from '../../shared/js/layout.js';
 import { fmtEUR, fmtKg, fmtNum } from '../../shared/js/format.js';
+/* Dépôt des projets (async) + correspondance équipement -> catégorie de grille. */
+import { ProjectRepository } from '../../shared/js/projects-repo.js';
+import { categoryOf } from '../project-estimation/grid-config.js';
 
 /* =========================================================================
  *  1. RÉFÉRENCES DOM
@@ -51,8 +54,17 @@ const el = {
   weightMin: document.getElementById('weightMin'),
   weightNom: document.getElementById('weightNom'),
   weightMax: document.getElementById('weightMax'),
-  summary: document.getElementById('summary')
+  summary: document.getElementById('summary'),
+  /* Ajout au projet */
+  addProject: document.getElementById('add-project'),
+  addQty: document.getElementById('add-qty'),
+  addToProject: document.getElementById('add-to-project'),
+  addFeedback: document.getElementById('add-feedback')
 };
+
+/* Dernière estimation réussie (utilisée pour l'ajout au projet).
+   Contient { result, displayMeta } ou null si aucune estimation valide. */
+let lastEstimate = null;
 
 /* Formateurs d'affichage : importés depuis shared/js/format.js
    (fmtEUR, fmtKg, fmtNum) pour une présentation homogène dans toute la suite. */
@@ -142,6 +154,7 @@ function onEquipmentChange() {
   /* Réinitialise les résultats et messages à chaque changement. */
   el.results.classList.add('hidden');
   el.validation.classList.add('hidden');
+  lastEstimate = null; // toute nouvelle sélection invalide l'estimation précédente
 
   if (!eq) {
     el.banner.classList.add('hidden');
@@ -315,7 +328,10 @@ async function onEstimate() {
     }
 
     el.validation.classList.add('hidden');
+    /* Mémorise l'estimation courante pour permettre l'ajout au projet. */
+    lastEstimate = { result, displayMeta };
     renderResults(result, displayMeta);
+    refreshProjectSelect(); // rafraîchit la liste des projets à chaque estimation
     el.results.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (err) {
     /* Erreur réseau/inattendue (surtout pertinent avec un back-end). */
@@ -329,7 +345,100 @@ async function onEstimate() {
 }
 
 /* =========================================================================
- *  9. INITIALISATION
+ *  9. AJOUT DE L'ESTIMATION À UN PROJET
+ * -------------------------------------------------------------------------
+ *  Toute la persistance passe par ProjectRepository (async) : cette section
+ *  ne connaît que le contrat EstimationItem, prête pour un back-end.
+ * ========================================================================= */
+
+/* Remplit le menu déroulant des projets cibles (les plus récents d'abord). */
+async function refreshProjectSelect() {
+  if (!el.addProject) return;
+  const selected = el.addProject.value; // conserve la sélection si possible
+  const projects = await ProjectRepository.list();
+
+  if (!projects.length) {
+    el.addProject.innerHTML =
+      '<option value="" disabled selected>— Aucun projet : créez-en un d\'abord —</option>';
+    el.addToProject.disabled = true;
+    el.addToProject.classList.add('opacity-50', 'cursor-not-allowed');
+    return;
+  }
+
+  el.addProject.innerHTML = projects
+    .map((p) => `<option value="${p.id}">${p.name}</option>`)
+    .join('');
+  /* Restaure la sélection précédente si elle existe encore. */
+  if (selected && projects.some((p) => p.id === selected)) {
+    el.addProject.value = selected;
+  }
+  el.addToProject.disabled = false;
+  el.addToProject.classList.remove('opacity-50', 'cursor-not-allowed');
+}
+
+/* Construit la grandeur caractéristique lisible selon le modèle. */
+function buildCharacteristic(result, displayMeta) {
+  const d = result.details;
+  if (result.model === 'tank') {
+    return `${fmtNum.format(d.volumeM3)} m³ · ${d.pressure} bar · ${d.material.label}`;
+  }
+  if (result.model === 'pump') {
+    return `${fmtNum.format(d.flow)} m³/h · ${fmtNum.format(d.head)} m · ${fmtNum.format(d.powerKw)} kW`;
+  }
+  return '';
+}
+
+/* Affiche un message de retour temporaire sous le bouton d'ajout. */
+function showAddFeedback(message, ok) {
+  el.addFeedback.textContent = message;
+  el.addFeedback.classList.remove('hidden', 'text-accent-600', 'text-red-600');
+  el.addFeedback.classList.add(ok ? 'text-accent-600' : 'text-red-600');
+  clearTimeout(showAddFeedback._t);
+  showAddFeedback._t = setTimeout(() => el.addFeedback.classList.add('hidden'), 4000);
+}
+
+/* Handler : ajoute l'estimation courante au projet sélectionné. */
+async function onAddToProject() {
+  if (!lastEstimate) {
+    showAddFeedback("Lancez d'abord une estimation.", false);
+    return;
+  }
+  const projectId = el.addProject.value;
+  if (!projectId) {
+    showAddFeedback('Sélectionnez un projet cible.', false);
+    return;
+  }
+
+  const eq = findEquipment(el.equipment.value);
+  const { result, displayMeta } = lastEstimate;
+  const quantity = Math.max(1, parseInt(el.addQty.value, 10) || 1);
+
+  /* Construit l'EstimationItem selon le contrat de ProjectRepository. */
+  const item = {
+    equipmentId: el.equipment.value,
+    equipmentLabel: eq ? eq.label : el.equipment.value,
+    category: categoryOf(el.equipment.value),
+    quantity,
+    characteristic: buildCharacteristic(result, displayMeta),
+    unitCost: result.cost.nominal,
+    unitWeightKg: result.weight.nominal,
+    params: result.details // traçabilité des paramètres de calcul
+  };
+
+  el.addToProject.disabled = true;
+  try {
+    await ProjectRepository.addItem(projectId, item);
+    showAddFeedback('Équipement ajouté au projet ✓', true);
+  } catch (err) {
+    console.error(err);
+    showAddFeedback("Ajout impossible : " + (err.message || err), false);
+  } finally {
+    el.addToProject.disabled = false;
+  }
+}
+
+/* =========================================================================
+ *  10. INITIALISATION
  * ========================================================================= */
 function init() {
   /* En-tête et pied de page partagés à toute la suite. */
@@ -343,6 +452,10 @@ function init() {
 
   el.equipment.addEventListener('change', onEquipmentChange);
   el.estimate.addEventListener('click', onEstimate);
+  el.addToProject.addEventListener('click', onAddToProject);
+
+  /* Charge la liste des projets disponibles dès l'ouverture. */
+  refreshProjectSelect();
 
   /* Touche Entrée dans les champs numériques => lance l'estimation. */
   [el.volume, el.pressure, el.flow, el.head].forEach((inp) => {
